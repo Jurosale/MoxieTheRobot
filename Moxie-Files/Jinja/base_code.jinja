@@ -1,0 +1,20 @@
+{% extends "BaseTemplates/base_topic_move_on.jinja" %}
+
+{% block prompt_code %}
+    {# do everything needed for prompt code #}
+    {{super()}}
+
+    # Additional ChatScript code may be located below:
+    {# add a space for code #}
+    {% block code %}
+    # ChatScript Code goes here
+    {% endblock code %}
+
+{% endblock prompt_code %}
+
+{# use utility node move on for code nodes #}
+{% block move_on %}
+
+    {{util.exit_node(move_on)}}
+    
+{% endblock move_on %}

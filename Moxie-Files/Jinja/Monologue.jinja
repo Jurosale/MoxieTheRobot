@@ -1,0 +1,132 @@
+# README: takes the data defined in "monologue1.py" to generate
+# a ChatScript topic that produces a monologue speech
+
+{% extends "BaseTemplates/base_topic.jinja" %}
+
+{% block topic_rb_flags %} [ eb-lost-target eb-lost-target-interrupt RestartTimer {{topic_flags}}] {% endblock %}
+
+{% block prompt_rule %}
+### Monologue module START
+    {{super()}}
+    ^reset(TOPIC ~{{topic_name}}_Monologue_Lines_NOSTAY_)
+    ^reuse(PLAY_NEXT_LINE)
+{% endblock %}
+{% block reprompt_content %}
+    ^reuse(GO_BACK_TO_MONOLOGUE)
+{% endblock %}
+
+{# custom response for all monologue clarifications #}
+{% block clarification_content %}
+    ^Fallback_Output_repeat2()
+{% endblock clarification_content %}
+
+{% block body %}
+u: PLAY_NEXT_LINE (eb-wait-complete)
+    ^respond(~{{topic_name}}_Monologue_Lines_NOSTAY_)
+    ^eb_fallback_reset_all_counters()
+    {% if monologue_timer_value == 'monologue(0.25s)' %}
+    ^enableMonologueTimer()
+    {% elif monologue_timer_value == 'short(1.0s)' %}
+    ^enableShortTimer()
+    {% elif monologue_timer_value == 'medium(3.0s)' %}
+    ^enableMediumTimer()
+    {% elif monologue_timer_value == 'long(5.0s)' %}
+    ^enableLongTimer()
+    {% elif monologue_timer_value == 'reprompt(10.0s)' %}
+    ^enableRepromptTimer()
+    {% else %}
+    ^enableMonologueTimer()
+    {% endif %}
+
+{% if early_exit_monologue_move_on_topic and early_exit_monologue_pattern %}
+u: EARLY_EXIT_MONOLOGUE ({{early_exit_monologue_pattern}})
+    {{util.exit_node(early_exit_monologue_move_on_topic)}}
+{% endif %}
+
+
+u: GO_BACK_TO_MONOLOGUE ({{continue_monologue_pattern}})
+    {% if markup_continue_monologue_text %}
+    {{markup_continue_monologue_text}}
+    {% elif continue_monologue_text %}
+    {{continue_monologue_text}}
+    {% endif %}
+    $$Monologue_repeatLastLine = true
+    ^reuse(PLAY_NEXT_LINE)
+
+{# generate events if they exist and make sure they play the next monologue line if they don't have a move on path #}
+{% set play_next_line %}
+    ^reuse(PLAY_NEXT_LINE)
+{% endset %}
+{{util.generate_events(events, additional_without_exit_code=play_next_line)}}
+
+u: LOST_TARGET (["eb-lost-target" "eb-lost-target-interrupt"])
+
+    {# For non-modules #}
+    {% if module_id %}
+        $_topic = ^getTopTopic()
+
+        if ({{util.var_name("lost_target_confirmation", module_id)}}) {
+            if (!{{util.var_name("lost_target_overrider_status", module_id)}})
+            {
+                {% if markup_lost_target_confirmation_monologue_text %}
+                {{markup_lost_target_confirmation_monologue_text}}
+                {% elif lost_target_confirmation_monologue_text %}
+                {{lost_target_confirmation_monologue_text}}
+                {% else %}
+                Are you still interested in the current activity?
+                {% endif %}
+            }
+          
+            ^{{module_id}}_lost_target($_topic)
+        }
+        if ({{util.var_name("lost_target_override", module_id)}}) {
+            ^eb_wait_override(true)
+        }
+        if ({{util.var_name("lost_target_require_face", module_id)}})  {
+            ^log_write(BOTH INFO ^"Lost Engagement (require face) in Topic: $_topic")
+        }
+        {% else %}
+        ^log_write(BOTH INFO ^"Lost Engagement (non-module) in Topic: $_topic")
+    {% endif %}
+
+u: FALLBACK(^gbl_fallback())
+    {% if fallback_monologue_choice == 'eyesClosed' %}
+    # non-verbal eyes closed confirmation
+    ^moxie_interested()
+    <mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:0,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_Celebrate+,+lifetime+:0,+category+:+None+,+behaviour+:+Bht_Close_Eyes+,+Track+:++}"/><break time="2s"/>
+    {% else %}
+    # non-verbal confirmation
+    ^moxie_interested()
+    {% endif %}
+    {% if monologue_timer_value == 'monologue(0.25s)' %}
+    ^enableMonologueTimer()
+    {% elif monologue_timer_value == 'short(1.0s)' %}
+    ^enableShortTimer()
+    {% elif monologue_timer_value == 'medium(3.0s)' %}
+    ^enableMediumTimer()
+    {% elif monologue_timer_value == 'long(5.0s)' %}
+    ^enableLongTimer()
+    {% elif monologue_timer_value == 'reprompt(10.0s)' %}
+    ^enableRepromptTimer()
+    {% else %}
+    ^enableMonologueTimer()
+    {% endif %}
+
+{# this topic's name must end with "NOSTAY_" so robotbrain knows this is a cs topic we can never end on #}
+{# in this specific case, it means robotbrain now correctly grabs the fallback type for monologue nodes #}
+topic: ~{{topic_name}}_Monologue_Lines_NOSTAY_ repeat nostay []
+
+u: REPEAT_LAST_LINE($$Monologue_repeatLastLine) ^keep()
+    $_rule = ^join(MONOLOGUE_LINE_ $Monologue_Line)
+    ^reuse($_rule)
+
+{%- for line in csv_data if line["Markup"] %}
+u: MONOLOGUE_LINE_{{loop.index|upper}} ()
+    {{line["Markup"]}}
+    $Monologue_Line = {{loop.index|upper}}
+{%- endfor %}
+
+u: EXIT ()
+    {{util.exit_node(finished_monologue_move_on_topic)}}
+### Monologue module END
+{% endblock %}

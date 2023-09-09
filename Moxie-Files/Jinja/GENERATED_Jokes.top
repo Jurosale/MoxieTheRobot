@@ -1,0 +1,12 @@
+# README: This is a generated file from "SetRandomInt.jinja". The inheritance structure is as
+# follows: base_topic.jinja -> base_topic_move_on.jinja -> base_code.jinja -> SetRandomInt.jinja
+
+topic:  ~JOKE_Lobby_Moxie_tells_Joke_Intro   keep repeat   [] 
+# base_topic_move_on.jinja
+t: PROMPT() ^keep() ^repeat()
+    # prompt markup/text
+    # Additional ChatScript code may be located below:
+    $T_JOKEJSON.joke_limit = ^compute(0 random 4)
+    # Exit Node
+    ^gambit(~JOKE_Lobby_Moxie_tells_Joke_unnamed_Node_79788B29_B970_44FE_BB5A_0CD873A5DAFE) # Gambit Specific Path
+### BaseTemplates/base_topic_move_on.jinja ###

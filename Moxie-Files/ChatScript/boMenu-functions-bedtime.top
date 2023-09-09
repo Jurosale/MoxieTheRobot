@@ -1,0 +1,151 @@
+# README: This file contains ChatScript functions instead of standard topics and rules.
+# An "outputmacro" can contain a combination of speech responses, logic operations and
+# topic movement. A "Patternmacro" contains a speech pattern (i.e. "input listener")
+# that any rule can use for activation depending on user's input.
+
+# determines whether or not it's currently bedtime
+outputmacro: ^BOMENU_isBedtime()
+	# currently, bedtime won't be set to active until user has attempted FTUE events at least once
+	if ($Bedtime_Active == true)
+	{
+		$_dayOfWeekIdx = ^getCurrentDay()
+		$_currentTime = ^BOMENU_currentTimeInMinutes()
+		if (^eb_bedtime_active($_dayOfWeekIdx $_currentTime) == true )
+		{
+			^log_write(BOTH INFO ^"RB says BEDTIME ACTIVE")
+			^return(true)
+		}
+		else
+		{
+			^log_write(BOTH INFO ^"RB says BEDTIME OFF")
+			^return(false)
+		}
+	}
+	else
+	{
+		^return(false)
+	}
+
+
+
+# returns the current time in minutes
+outputmacro: ^BOMENU_currentTimeInMinutes()
+	$_currHour = ^getHour()
+	$_currMinute = ^getMinute()
+
+	$_currTimeInMins = ^compute($_currHour * 60)
+	$_currTimeInMins += $_currMinute
+
+	^return($_currTimeInMins)
+
+
+
+# initializes the bedtime values
+outputmacro: ^BOMENU_initializeBedtimeValues()
+	$BOMENUJSON.bedtime = false
+  	$BOMENUJSON.numSleepInterruptions = 0
+
+
+
+# adds triggers related to the bedtime activites
+outputmacro: ^BOMENU_initiateBedtimeTriggers()
+	# ^MACRO_Bedtime_almostBedtime()
+	$BOMENUJSON.bedtime = true 
+	$_consumeRet = ^module_addtrigger($BEDTIME_PRIORITY BEDTIME_intro true)
+
+
+
+# one time call to enable bedtime
+outputmacro: ^BOMENU_activateBedtime()
+	$Bedtime_Active = true
+	
+	# If it's bedtime, make sure to put in the bedtime activities into today's planner ONCE
+  	if(^BOMENU_isBedtime() == true){
+    	$BOMENUJSON.bedtimeProtocolAvailable = false
+    	^BOMENU_initiateBedtimeTriggers()
+  	}
+
+
+
+# calls topic that initiates the bedtime sequence
+outputmacro: ^BEDTIME_intro()
+	if($BOMENUJSON.bedtime == true){
+		^gambit(~BEDTIME_Introduction)
+	}
+
+
+outputmacro: ^BEDTIME_AB_OR_AUDMED()
+	if($BOMENUJSON.bedtime == true){
+		^gambit(~BEDTIME_AB_OR_AUDMED)
+	}
+
+outputmacro: ^BEDTIME_ASK_AB()
+	if($BOMENUJSON.bedtime == true){
+		^gambit(~BEDTIME_ASK_AB)
+	}
+
+outputmacro: ^BEDTIME_ASK_STORY()
+	if($BOMENUJSON.bedtime == true){
+		^gambit(~BEDTIME_ASK_STORY)
+	}
+
+# calls topic that makes Moxie go to sleep
+outputmacro: ^BEDTIME_outro()
+	if($BOMENUJSON.bedtime == true){
+		^gambit(~BEDTIME_Exit)
+	}
+
+# dialogue for when user tries to enter a different module during bedtime
+outputmacro: ^BEDTIME_lockedOut variable ($_module)
+	^MACRO_Bedtime_lockedOut()
+
+	if($_module == AB){
+		^MACRO_Bedtime_lockedOutAB()
+	}
+	else if($_module == AUDMED){
+		^MACRO_Bedtime_lockedOutAudMed()
+	}
+	else if($_module == DM){
+		^MACRO_Bedtime_lockedOutDM()
+	}
+	else if($_module == FTUE){
+		^MACRO_Bedtime_lockedOutFTUE()
+	}
+	else if($_module == FF){
+		^MACRO_Bedtime_lockedOutFF()
+	}
+	else if($_module == JOKE){
+		^MACRO_Bedtime_lockedOutJoke()
+	}
+	else if($_module == TELLJOKE){
+		^MACRO_Bedtime_lockedOutUserTellsJoke()
+	}
+	else if($_module == RDL){
+		^MACRO_Bedtime_lockedOutRDL()
+	}
+	else if($_module == STORY){
+		^MACRO_Bedtime_lockedOutStory()
+	}
+	else if($_module == READ){
+		^MACRO_Bedtime_lockedOutRead()
+	}
+	else{
+		^MACRO_Bedtime_lockedOutGeneric()
+	}
+
+	<break time="0.5s"/>
+
+
+
+# dialogue for when user tries to talk to Moxie while Moxie is in bedtime
+outputmacro: ^BEDTIME_stillAsleep()
+	^MACRO_Bedtime_stillAsleep()
+
+patternmacro: ^BEDTIME_childWantsBedtime()
+[
+	(!not [~request (how about) (you *~1 do) tell give] *~4 bedtime [story routine activity]) 
+	(!not [I we] *~2 [want need could] *~5 sleep) 
+	(!not [I we] *~3 [do start] *~2 [bed bedtime])
+	(~botName *~3 bedtime *~1 >)
+	([(it is) (get ready) (time)] *~5 [bed bedtime])
+]

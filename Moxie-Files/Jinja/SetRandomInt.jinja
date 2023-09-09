@@ -1,0 +1,15 @@
+# README: takes the data defined in "set_random_int.py" to generate
+# a ChatScript topic with code to produce a random integer
+
+{# extends from the base Code Node #}
+{% extends "BaseTemplates/base_code.jinja" %}
+
+{% block code %}
+
+{# ensure max int value is inclusive #}
+{% set max_var_value = max_var_value + 1 %}
+
+{# generates variable name #}             {# grabs a random number within the min and max int values provided (inclusive) #}
+{{util.var_name(var_name, module_id) }} = ^compute({{min_var_value}} random {{max_var_value}})
+
+{% endblock code %}

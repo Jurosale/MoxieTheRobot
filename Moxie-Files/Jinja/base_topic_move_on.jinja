@@ -1,0 +1,40 @@
+{% extends 'BaseTemplates/base_topic.jinja' %}
+
+{% block prompt_rule %}
+# base_topic_move_on.jinja
+    {{super()}}
+
+    {# check if there is a move on topic path #}
+    {% block move_on %}
+    {% if move_on %}
+    {% if move_on_pattern %}
+    u: MOVE_ON ({{move_on_pattern}})
+        ^gambit(~{{move_on}}) # move_on
+    {% else %}
+    ^gambit(~{{move_on}}) # move_on
+    {% endif %}
+    
+    {# else add legacy exit code #}
+    {% else %}
+
+    {% if code %}
+    # no exit because code exit above
+    {% else %}
+    {{temporary_exit_code}} # legacy code field from Topic().temporary_exit_code
+    {% endif %}
+
+    {% endif %}
+
+    {% endblock move_on %}
+
+{% endblock prompt_rule %}
+
+{% block clarification_rule %}
+{% endblock clarification_rule %}
+
+{% block reprompt_rule %}
+{% endblock reprompt_rule %}
+
+{% block body %}{# rules and main content of a child topic goes here #}
+### BaseTemplates/base_topic_move_on.jinja ###
+{% endblock body %}

@@ -1,0 +1,119 @@
+# README: Co-developed with another teammate
+
+# README: ChatScript is a chatbot engine that uses topics (denoted by the "topic: TOPIC_NAME")
+# and rules (denoted by the "t: RULE_NAME"/"u: RULE_NAME") to produce a speech response based
+# on user's input. At any given time, the chatbot will wait in a topic and use the next user's
+# input to determine will rule to activate which will produce a combination of speech responses, 
+# logic operations and movement to another topic.
+
+# README: This specific file shows how ChatScript files are typically organized; an entry topic
+# is located at the top, then potential topics a user can jump to are listed next and finally
+# the exit topic is located at the bottom.
+topic: ~AUDMED_entry keep []
+
+t: FIRST_TIME ()
+    ^gambit(~AUDMED_FT_First_Entry_Lines_Intro)
+    ^disable(RULE ~)
+
+t: ENTRY () ^keep() ^repeat()
+    ^eb_enable_oov_response()
+    ^reuse(FINISHED_ENTRY)
+
+t: FINISHED_ENTRY () ^keep() ^repeat()
+    ^AUDMED_start_calm_music()
+    $T_AUDMEDJSON.medIDX = 0
+    $AUDMEDJSON.inMed = true  
+    ^gambit(~AUDMED_meditate)
+
+topic: ~AUDMED_meditate keep repeat [handleInterrupt handlePutDown handleExitEarmuff handleWifiRecovery noPolite noYoureWelcome]
+
+t: MEDITATE_LINE () ^keep() ^repeat()
+    if($AUDMEDJSON.inMed == false) {
+        $AUDMEDJSON.inMed = true
+        ^reuse(~AUDMED_pause.RETURN_TO_MODULE)
+    } else {
+        ^eb_wait_override(true)
+        ^AUDMED_Lobby_MED_POSE()
+        $_idx = $T_AUDMEDJSON.medIDX
+        $T_AUDMEDJSON.meditation[$_idx]
+        ^enableMediumTimer()
+    }
+
+u: REPROMPT(^gbl_reprompt()) ^keep() ^repeat()
+    ^reuse(MEDITATE_LINE)
+
+u: NEXT_LINE (eb-wait-complete)
+    $T_AUDMEDJSON.medIDX += 1
+    $_len = ^length($T_AUDMEDJSON.meditation)
+    if($T_AUDMEDJSON.medIDX >= $_len) {
+        ^eb_wait_override(false)
+        ^gambit(~AUDMED_exit)
+    } else {
+        ^reuse(MEDITATE_LINE)
+    }
+
+u: INTERRUPT(["signal-interrupt" ^globalPattern_helpBot()])
+	^gambit(~AUDMED_pause)
+
+u: PUT_DOWN("signal-putdown")
+    ^MPUStates_output(PUT_DOWN)
+    ^keepRejoinder()
+    ^noRepeat()
+    ^Output_pleaseRepeat()
+    ^enableMediumTimer()
+
+u: EXIT_EARMUFF("signal-exitearmuff")
+	^reuse(REPROMPT)
+
+u: WIFI_RECOVERY("signal-wifirecovery")
+	^reuse(REPROMPT)
+
+#! fallback response
+u: FALLBACK(^gbl_fallback())
+    ^eb_wait_override(false)
+	^gambit(~AUDMED_pause)
+
+
+
+topic: ~AUDMED_pause keep repeat []
+
+t: PAUSE () ^keep() ^repeat() 
+    ^AUDMED_Lobby_PAUSE_INTRO()
+    ^AUDMED_Lobby_PAUSE()
+
+t: RETURN_TO_MODULE () ^keep() ^repeat()
+    ^AUDMED_Lobby_RETURN_TO_MODULE()
+
+u: REPROMPT(^gbl_reprompt())
+	^AUDMED_Lobby_RETURN_TO_MODULE()
+
+u: CONTINUE(([ (^globalPattern_continueBot()) (^globalPattern_childContinueMission()) (!~not [~start continue ([let want like love] *~5 [~bot_meditation it continue that])])]))
+    ^AUDMED_Lobby_CONTINUE()
+    ^gambit(~AUDMED_meditate)
+
+u: START_AGAIN(!activity  ^globalPattern_requestRestartBot())
+    ^AUDMED_Lobby_RESTART()
+    $T_AUDMEDJSON.medIDX = 0
+	^gambit(~AUDMED_meditate)
+
+#! fallback response
+u: FALLBACK(^gbl_fallback())
+	^fallbackHandler()
+
+
+
+topic: ~AUDMED_exit keep repeat []
+
+t: EXIT () ^keep() ^repeat()
+    ^gambit(~AUDMED_Return_Intro)
+
+t: COMPLETE_EXIT_CONVO () ^keep() ^repeat()
+    ^reset_cs_token()
+    ^eb_disable_oov_response()
+    $AUDMEDJSON.paths += $T_AUDMEDJSON.path
+    ^AUDMED_recordNodeVisits()
+    ^module_complete(AUDMED null)
+    if($T_AUDMEDJSON.path_length >= 21){
+        ^rewards_incrementListener(ls-AM_length)
+    }
+    ^exit_controller(silent delayed)
