@@ -1,4 +1,4 @@
-# README: Co-developed by various members. I was not the original author
+# README: Co-developed with various members. I was not the original author
 # but continually reduced tech debt for better scalability
 
 import os
