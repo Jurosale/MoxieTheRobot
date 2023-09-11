@@ -3,8 +3,8 @@
 # README: ChatScript is a chatbot engine that uses topics (denoted by the "topic: TOPIC_NAME")
 # and rules (denoted by the "t: RULE_NAME"/"u: RULE_NAME") to produce a speech response based
 # on user's input. At any given time, the chatbot will wait in a topic and use the next user's
-# input to determine will rule to activate which will produce a combination of speech responses, 
-# logic operations and movement to another topic.
+# input to determine which rule to activate. An activated rule can produce a combination of
+# speech responses, logic operations and movements to other topics.
 
 # README: This specific file shows how ChatScript files are typically organized; an entry topic
 # is located at the top, then potential topics a user can jump to are listed next and finally
