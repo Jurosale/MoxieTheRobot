@@ -1,4 +1,4 @@
-# README: Co-developed this file with my team.
+# README: Co-developed this file with my team. Eventually became the main author.
 
 # README: This file takes in the data of a designer's interactive activity
 # (called a "module") in the form of a JSON file and parses it to later
