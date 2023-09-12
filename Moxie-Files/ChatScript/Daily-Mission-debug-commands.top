@@ -82,7 +82,7 @@ u: DEBUG_COMPLETE_MISSION_SET (debug complete mission set _~integer)
     }
 
 # complete current mission and say the mission index out loud
-u: DEBUG_WARP (debug complete mission)
+u: DEBUG_COMPLETE_MISSION (debug complete mission)
     completed mission $DMJSON.MissionSet $DMJSON.MissionIDX
     if($DMJSON.Type == FETCH1){
         part one
@@ -97,99 +97,6 @@ u: DEBUG_COMPLETE_ALL (debug complete all missions)
     Completing every single daily mission
     ^eb_complete_all_missions()
 
-u: DEBUG_FINISH_ALL (debug call [mission Mission] controller)
+u: DEBUG_START_MISSION (debug call [mission Mission] controller)
     Calling mission controller directly.
     ^DM_controller( null )
-
-# the child asks to do a mission.
-topic: ~DM_ModuleEntrance keep repeat nostay []
-
-u: IN_MODULE_DM([^getTopModule()=DM ^getTopModule()=OMR])
-    # don't enter module if you are already in the module
-    # TODO: finalize this behavior
-    ^end(TOPIC)
-
-u: DM_ENTRANCE ( ^DM_entrancePattern() ) ^refine()
-
-    a: (^DM_get_actual_module_id()=null) # this call is used to detect if there is any module id, OMR, DM, FIELDMISSION, that is viable. 
-        # TODO: figure out custom reentry behaviour using DC object.
-        <mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:4,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_Think+,+lifetime+:0,+category+:+None+,+behaviour+:++,+Track+:++}"/><usel variant="1" genre="none">Hmm,</usel> I don't <usel variant="1" genre="none">have a new mission</usel> for <usel variant="10" genre="none">you yet.</usel><mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:4,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_Talk+,+lifetime+:0,+category+:+None+,+behaviour+:++,+Track+:++}"/> I'll <usel variant="3" genre="none">let you know</usel> as <usel variant="5" genre="none">soon as theirs</usel><usel variant="5" genre="none"></usel> a new one!<mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:4,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_None+,+lifetime+:0,+category+:+None+,+behaviour+:++,+Track+:++}"/>
-        ^module_requested(DM)
-        ^endGlobalTangent(true)
-    a: ([^isModuleCompletedToday(DM)=true ^isModuleCompletedToday(FIELDMISSION)=true])
-        <mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:4,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_Self+,+lifetime+:0,+category+:+None+,+behaviour+:++,+Track+:++}"/><usel variant="1" genre="none">The GRL wants us to only do one mission a day! </usel><mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:4,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_Discard+,+lifetime+:0,+category+:+None+,+behaviour+:++,+Track+:++}"/><usel variant="0" genre="none">Please check back tomorrow for the next mission!<mark name="cmd:behaviour-tree,data:{+transition+:0.5,+duration+:1.0,+repeat+:1,+layerBlendInTime+:0.5,+layerBlendOutTime+:0.5,+blocking+:false,+action+:4,+variableName+:++,+variableValue+:++,+eventName+:+Gesture_None+,+lifetime+:0,+category+:+None+,+behaviour+:++,+Track+:++}"/></usel>
-        ^module_requested(DM)
-        ^endGlobalTangent(true)
-    a: ($BOMENUJSON.bedtime=true)
-        ^BEDTIME_lockedOut(DM)
-        ^module_requested(DM)
-        ^endGlobalTangent(true)
-    a: (^isTopModuleMenuModule()=true)
-        ^module_requested(DM)
-        ^DM_controller( null )
-    a: ()
-        ^transferModule(DM)
-
-# we set a reminder for the child to finish their mission and it triggered
-topic: ~DM_Reminder keep repeat []
-
-t: PROMPT () ^keep() ^repeat()
-    ^DM_pickDialogue(reminderIntro)
-    ^DM_pickDialogue(reminderPrompt)
-
-u:  REPROMPT(^gbl_reprompt())
-    ^DM_pickDialogue(reminderPrompt)
-
-# idk 
-u: IDK (^globalPattern_idkBot()) 
-    ^DM_pickDialogue(missionPreIntroIdk)
-    ^DM_controller(reminder)
-
-# no
-u: NO ([^globalPattern_noBot() ^globalPattern_doNegative() ^globalPattern_childNotWant() ^globalPattern_willNegative() (not * help) later]) 
-    ^DM_pickDialogue(reminderNo)
-    ^DM_laterMission()
-
-# yes 
-u: YES ([^globalPattern_yesBot() ^globalPattern_doAffirmative() ^globalPattern_childWant() ^globalPattern_willAffirmative() (!not help)]) 
-    ^DM_pickDialogue(missionPreIntroYes)
-    ^DM_controller(reminder)
-
-u: FALLBACK(^gbl_fallback())
-    ^fallbackHandler()
-
-##### Drawing Specific tangents #######
-topic: ~DM_DrawingTangents keep repeat []
-
-u: OUT_OF_MATS (!%question [([pen pencil marker crayon sharpie eraser paint paint_brush brush color] * [break (dry out) (not here)]) ([(not have) (not find)] {[any some]} {of} {[a ~pronoun_possessive]} * [pen ({special} sheet {of paper}) paper pencil marker crayon sharpie eraser paint paint_brush brush color box bag it this that something any anything ({draw} [stuff thing material logbook])])]) 
-    ^DM_pickDialogue(noMaterials Drawing)
-    ^DM_laterMission()
-
-# patterns for entering daily missions
-#! what's the next mission
-#! what is our next mission
-#! can we do a mission
-#! can we do the next daily mission
-#! tell me about the next mission 
-#! do you have another mission
-#! do you know about the next mission
-#! I want to hear about the next daily mission
-#! Is there a mission today
-#! Will there be a mission soon
-#! Moxie mission please
-#!!F where should I go to mark off my mission
-patternmacro: ^DM_entrancePattern()
-!~mini_mission
-!([where what which] *~6 [page check mark])
-[
-    (!~negation what *~4 {next} {[~botName ~GRL daily]} mission)
-    (!~negation [can do] *~4 {next} {[~botName ~GRL daily]} mission)
-    (!~negation tell me *~2 {next} {[~botName ~GRL daily]} mission)
-    (!~negation *~3 hear about *~1 {next} {[~botName ~GRL daily]} mission)
-    (!~negation ^intentPattern_request() *~4 {next} {[~botName ~GRL daily]} mission)
-    (< !~negation  {~botName} {[I we]} {[(will {~intensifier} [like love]) want]} *~1 next {[~botName ~GRL daily]} mission)
-    (< !~negation be there *~2 {[~botName ~GRL daily]} mission {[today soon now later]} >)
-    (< !~negation ~botName {[~botName ~GRL daily]} mission {[please ~botName]} >)
-    (^isTopModuleMenuModule()=true < !~negation ~botName *~1 {[~botName ~GRL daily]} mission {[please ~botName]} >)
-    (< !~negation {~botname} [(do_you_want)(will you [like love])] { to [go try finish do retry attempt]} *~3 {[~botName ~GRL daily]} mission)
-]
