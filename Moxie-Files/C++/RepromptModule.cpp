@@ -1,7 +1,5 @@
-// README: Was not the original author but did take over and
-// wrote most of the current code. This file defines behaviors
-// for when/how Moxie should reprompt and whether or not it
-// needs to perform additional visual/sound effect actions
+// README: This file defines behaviors for when/how Moxie should reprompt and
+// whether or not it needs to perform additional visual/sound effect actions
 
 #include <robotbrain2/system/RepromptModule.h>
 
@@ -66,22 +64,6 @@ namespace robotbrain
         robotbrain_reprompts_.clear();    
     }
 
-    void RepromptModule::SetRemoteReprompt(const std::string& reprompt_text, const std::string& engine)
-    {
-        remote_reprompt_text_ = reprompt_text;
-        last_response_engine_ = engine;
-        LOG_INFO << "Set Remote Reprompt: " << reprompt_text << " ; from engine: " << last_response_engine_;
-    }
-
-    // Riely 9/28/21: the params for clearing this will change as we go.
-    // this is what resetting looks like now
-    void RepromptModule::ClearRemoteReprompt()
-    {
-        remote_reprompt_text_ = "";
-        last_response_engine_ = ChatEngines::chatscript();
-        LOG_INFO << "Reset cached Remote Reprompt";
-    }
-
     // This toggle will allow us to keep track of the head markup slot at all times
     // Since there are currently only 2 markup slots,
     // if the current markup slot is at 0, then slot 1 becomes the new head slot and vice versa
@@ -100,24 +82,6 @@ namespace robotbrain
         LOG_INFO << "Resetting Reprompt Module flags and variables";
     }
 
-    // TODO: figure out how to use the logic from the Engagement Module to determin which engine should Reprompt
-    // store the remote output for remote reprompts
-    void RepromptModule::OnRemoteVolleyAccepted(Volley& volley)
-    {
-        // Riely 9/28/21: for now, we are just checking if the Remote Engine's output is NORMAL
-        // TODO: Use the Engagement Model's logic to determine if we should use this as a reprompt
-        if(volley.Output()->Response().output_type() == OutputType::NORMAL)
-        {
-            LOG_INFO << "Storing Remote Output: " << volley.Output()->Response().response();
-            // update the Reprompt Text with the latest output
-            SetRemoteReprompt(volley.Output()->Response().response(), ChatEngines::remote());
-        }
-        else
-            LOG_INFO << "Ignoring Remote Output: " << volley.Output()->Response().response() << " ; with Output Type: " << volley.Output()->Response().output_type();
-
-    }
-
-    // need to add a version of this that checks the ChatScript response
     std::shared_ptr<ModuleRewindInfo> RepromptModule::OnChatVolleyFinished(Volley& volley)
     {
         // Check whether or not the current volley is interrupting the previous volley
@@ -255,17 +219,6 @@ namespace robotbrain
             prev_module_ = curr_module;
         }
 
-        // Riely 9/28/21: do we want to check the output type here?
-        if(volley.Output()->Response().output_type() == OutputType::NORMAL)
-        {
-            LOG_INFO << "Clearing Remote Reprompt, because ChatScript Output used.";
-            ClearRemoteReprompt();
-        }
-        else
-        {
-            LOG_INFO << "Keeping Remote Reprompt because ChatScript Output Type: " << volley.Output()->Response().output_type();
-        }
-
         return nullptr;
     }
 
@@ -282,26 +235,6 @@ namespace robotbrain
     {
         LOG_INFO << "CS has requested overriding volley output with a stored RB reprompt.";
         do_reprompt_override_ = true;
-
-        return NOPROBLEM_BIT;
-        
-    }
-
-    // return the cached Remote Reprompt text for output in ChatScript
-    FunctionResult RepromptModule::GetRepromptText(std::string& ret)
-    {
-        // use remote reprompt response, if we are driven by the remote engine
-        // TODO: don't check if its remote engine, check the cached reprompt text
-        if(last_response_engine_ == ChatEngines::remote() && remote_reprompt_text_ != "")
-        {
-            LOG_INFO << "Returning Remote Reprompt Text: " << remote_reprompt_text_;
-            ret = remote_reprompt_text_;
-        }
-        else
-        {
-            LOG_INFO << "No Remote Reprompt Text saved";
-            ret = "";
-        }
 
         return NOPROBLEM_BIT;
         
