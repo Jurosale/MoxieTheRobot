@@ -15,44 +15,8 @@ namespace embodied
 namespace robotbrain
 {
 
-// Define Events
-struct RepromptEvents
-{
-    struct ChatScript {};
-};
-
-/**
- * EBReprompt EventTypes
- */
-struct EBReprompt {};
-template<>
-struct EventTraits<EBReprompt>
-{
-	static const char* event_string() { return "eb-reprompt"; }
-	static const char* description() { return "fires when an auto reprompt timer finishes"; }
-	static const bool  is_user_event() { return true; }
-};
-
-/**
- * an eb-reprompt EventInput
- */
-typedef EventInput<EBReprompt> EBRepromptEvent;
-
-// define possible engines
-struct ChatEngines
-{
-    static const std::string chatscript() {return "chatscript";}
-    static const std::string remote() {return "remote";}
-};
-
 class RepromptModule : public Module
 {
-    // store which engine produced last prompt response
-    // maybe we don't need this yet?
-    std::string last_response_engine_ = "";
-    // store Remote Reprompt Text
-    // Riely Allen 9/24/21: for now, this is just the last thing the Remote Engine said
-    std::string remote_reprompt_text_ = "";
     // store the ending module of the previous volley
     std::string prev_module_ = "";
     // store the current topic name
@@ -69,6 +33,7 @@ class RepromptModule : public Module
     bool do_reprompt_override_ = false;
     // keeps track of currently active rb reprompts
     std::list<std::tuple<std::string, std::string, std::string>> robotbrain_reprompts_;
+
     // markup strings
     const std::string save_markup_prefix_ = "<mark name=\"cmd:playback-save,data:{+stateToSAVE+:+MarkupState";
     const std::string restore_markup_prefix_ = "<mark name=\"cmd:playback-restore,data:{+stateToRESTORE+:+MarkupState";
@@ -89,10 +54,6 @@ class RepromptModule : public Module
     void ClearReprompt(std::string chatscript_module);
     // function that resets all rb Reprompt texts.
     void ClearAllReprompts();
-    // function to store Remote Reprompt Text
-    void SetRemoteReprompt(const std::string& reprompt_text, const std::string& engine);
-    // function to reset Remote Reprompt Text
-    void ClearRemoteReprompt();
     // function to jump back and forth between our markup slots
     void ToggleSlot();
 
@@ -107,18 +68,12 @@ class RepromptModule : public Module
     // ChatScript Function that restores the last saved markup state
     FunctionResult RestoreMarkupState(std::string& ret);
 
-    // send a reprompt event into ChatScript?
-    // check on volley finished the engine that produced output.
-    // if response is NORMAL, set it as reprompt (for both engines)
-
 public:
     using Module::Module;
     typedef std::shared_ptr<RepromptModule> ptr;
     // reset flags on chat volley start
     virtual void OnChatVolleyStarted(Volley& volley) override;
-    // store the remote output for remote reprompts
-    virtual void OnRemoteVolleyAccepted(Volley& volley) override;
-    // clear remote output if chat volley finished
+    // perform reprompt checks and any additional actions if necessary on chat volley finished
     virtual std::shared_ptr<ModuleRewindInfo> OnChatVolleyFinished(Volley& volley) override;
     // ChatScript extension functions
     virtual std::list<ExtensionFunction> ExtensionFunctions() override
