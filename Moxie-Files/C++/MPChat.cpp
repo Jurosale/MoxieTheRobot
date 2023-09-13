@@ -1,6 +1,6 @@
 // README: Co-developed with another teammate. Works in conjuction
 // with "FallbackHandlers" files to determine behavior from
-// irrelevant user input (i.e. "fallbacks")
+// off-topic user input (i.e. "fallbacks")
 
 #define TAG "MPChat"
 #include <bo-core/Logging.h>
