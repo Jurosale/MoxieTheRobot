@@ -1,5 +1,5 @@
 // README: Co-developed with another teammate. Works in conjuction
-// with "MPChat" files to determine behavior from irrelevant user
+// with "MPChat" files to determine behavior from off-topic user
 // input (i.e. "fallbacks")
 
 #define TAG "FallbackHandlers"
