@@ -580,12 +580,11 @@ class TestModuleBroker(unittest.TestCase):
         validate all the fallback contexts in a module (and their related conversation files) are properly extracted into the ModuleInfo object
         """
         expected_fallback_contexts = [
-            # TODO: uncomment or remove this once CONVERSATION fallback types have been finialized - Juan 3.22.23
-            # {
-            #     '_topic_name': 'MODBROKER1_Board_1_Polar_Node',
-            #     '_fallback_type': 'CONVERSATION',
-            #     '_fallback_text': 'local test context.'
-            # },
+            {
+                '_topic_name': 'MODBROKER1_Board_1_Polar_Node',
+                '_fallback_type': 'FALLBACKS_NO_REMOTE',
+                '_fallback_text': 'local test context.'
+            },
             {
                 '_topic_name': 'MODBROKER1_Start_Intro',
                 '_fallback_type': 'DEFAULT',
