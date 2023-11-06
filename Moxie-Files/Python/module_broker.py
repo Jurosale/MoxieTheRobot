@@ -314,12 +314,16 @@ class ModuleInfo:
                         # make sure the fallback type is actually valid (else there's no point in writing it to the file)
                         # also make sure to include any defaults WITH a local fallback context
                         if option in _FALLBACK_CONTEXT_TYPES or (option == "DEFAULT" and text):
-                            fallback_contexts.append(
-                                ModuleInfo.FallbackContextInfo(topic_name=topic_name,
-                                                               fallback_type=option,
-                                                               fallback_text=text,
-                                                              )
-                                                    )
+                            # make sure to include any other associated topics when assigning fallback contexts
+                            topic_names = getattr(topic_obj, "other_topic_names", [])
+                            topic_names.append(topic_name)
+                            for name in topic_names:
+                                fallback_contexts.append(
+                                    ModuleInfo.FallbackContextInfo(topic_name=name,
+                                                                   fallback_type=option,
+                                                                   fallback_text=text,
+                                                                  )
+                                                        )
         return fallback_contexts
 
     @property
@@ -547,7 +551,7 @@ class ModuleBroker:
     # the current version of the Module Broker obj
     # Riely 5/11/22: this allows us to make changes to the ModuleBroker, without breaking an outdated compiler cache!
     # NOTE: Be sure to increment this number each time you PR a change to the ModuleBroker or ModulInfo objects!!!!
-    LATEST_VERSION: int = 15
+    LATEST_VERSION: int = 16
     # JSON Write path
     JSON_DICT: str = os.path.join(GENERATED_EMPATH_FILES, "ModuleInfo/")
     JSON_FILE: str = os.path.join(JSON_DICT, "module_info.json")
@@ -797,6 +801,37 @@ class ModuleBroker:
 
             # Lastly, delete the ModuleInfo since all its data should now be in Daily Mission's ModuleInfo
             self.module_info_data.pop(sub_mod_info.uuid, None)
+
+    def _has_non_generated_entry_lines(self) -> bool:
+        """
+        Checks if any of the module entries with an entry topic does not have an 
+        entry line
+        """
+        for module_info in self.module_info_data.values():
+            if hasattr(module_info, '_default_entries'):
+                for default_entry in module_info._default_entries:
+                    if default_entry.topic and not default_entry.entry_line:
+                        return True
+            if hasattr(module_info, '_global_entries'):
+                for global_entry in module_info._global_entries:
+                    if global_entry.topic and not global_entry.entry_line:
+                        return True
+            if hasattr(module_info, '_content_id_entries'):
+                for content_id_entry in module_info._content_id_entries:
+                    if content_id_entry.topic and not content_id_entry.entry_line:
+                        return True
+        logging.info("All modules have entry lines, skipping to next step")                
+        return False
+
+    def update_module_entry_lines(self, force=False) -> bool:
+        """
+        Update the entry lines for every module by gambiting to the entry topics in pybrain
+        """
+        if self._has_non_generated_entry_lines() or force:
+            logging.info("Setting up for module entry line generation")
+            if module_entry_line.generate_module_entry_lines(self, force):
+                return True
+        return False
 
     def _remove_native_modules(self) -> None:
         """
