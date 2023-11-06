@@ -18,7 +18,7 @@ namespace robotbrain
     // This list contains all the interupting events that could reasonably interrupt screen/sound markup
     static const std::vector<std::string> INTERRUPTING_EVENTS = { "eb-mpu-picked-up-interrupt" };
     // This list contains all the ChatScript topics we can reasonably expect to be the base topic
-    static const std::vector<std::string> BASE_TOPICS = { "moximusprime_router", "bomenu_router" };
+    static const std::vector<std::string> BASE_TOPICS = { "bo_heel_cool" };
     static const std::string stateChangeModName = "statechangetangentmodule";
     static const std::string stateChangeTopicName = stateChangeModName + "_topicname";
     static const int maxRobotBrainReprompts = 3;
@@ -64,9 +64,42 @@ namespace robotbrain
         robotbrain_reprompts_.clear();    
     }
 
+    void RepromptModule::SetLastPrompt(const std::string& prompt_text, const std::string& topic, const std::string& engine)
+    {
+        last_response_output_ = prompt_text;
+        last_response_topic_ = topic;
+        last_response_engine_ = engine;
+        LOG_DEBUG << "Set last prompt output: " << last_response_output_;
+        LOG_DEBUG << "Set last topic: " << last_response_topic_;
+        LOG_DEBUG << "Set last engine: " << last_response_engine_;
+    }
+
+    void RepromptModule::ClearLastPrompt()
+    {
+        last_response_output_ = "";
+        last_response_engine_ = "";
+        last_response_topic_ = "";
+        LOG_DEBUG << "Reset cached prompt";
+    }
+
+    std::string RepromptModule::GetLastPromptOutput()
+    {
+        return last_response_output_;
+    }
+
+    std::string RepromptModule::GetLastPromptTopic()
+    {
+        return last_response_topic_;
+    }
+
+    std::string RepromptModule::GetLastPromptEngine()
+    {
+        return last_response_engine_;
+    }
+
     // This toggle will allow us to keep track of the head markup slot at all times
-    // Since there are currently only 2 markup slots,
-    // if the current markup slot is at 0, then slot 1 becomes the new head slot and vice versa
+    // Since there are currently only 2 markup slots, if the current markup slot is
+    // at 0, then slot 1 becomes the new head slot and vice versa
     void RepromptModule::ToggleSlot()
     {
         markup_slot_ = (markup_slot_ == MarkupSlot::SLOT0) ? MarkupSlot::SLOT1 : MarkupSlot::SLOT0;
@@ -75,50 +108,99 @@ namespace robotbrain
     // Reset all reprompt module flags
     void RepromptModule::OnChatVolleyStarted(Volley& volley)
     {
+        skip_interrupt_handler_ = false;
+        keep_last_prompt_ = false;
         save_markup_called_ = false;
         restore_markup_called_ = false;
         do_reprompt_override_ = false;
+        do_reprompt_event_ = false;
         prepend_reprompt_text_ = "";
         LOG_INFO << "Resetting Reprompt Module flags and variables";
     }
 
-    std::shared_ptr<ModuleRewindInfo> RepromptModule::OnChatVolleyFinished(Volley& volley)
+    void RepromptModule::OnRemoteVolleyAccepted(Volley& volley)
     {
-        // Check whether or not the current volley is interrupting the previous volley
-        // and if so, set RB reprompt to the interrupted volley's entire output
-        std::string volley_interrupted;
-        if (volley.Input()->IsEvent())
+        // Retrieve last response and topic to perform needed checks and operations
+        auto last_response_ = GetLastPromptOutput();
+        auto last_topic_ = GetLastPromptTopic();
+
+        // Get remote input and output
+        std::string remote_response_ = volley.Output()->Response().response();
+        std::string remote_input_ = volley.Input()->InputString();
+        // NOTE: the following if/else statement intentionally ignores speechless
+        // output that does not advance the conversation state (i.e. active thinking)
+        if(remote_input_ == "eb-remote-act-stream")
         {
-            // If it's an event input, check if it's one of the accepted interrupting events
-            auto volley_input = volley.Input()->InputString();
-            if(std::find(INTERRUPTING_EVENTS.begin(), INTERRUPTING_EVENTS.end(), volley_input) != INTERRUPTING_EVENTS.end())
-                volley_interrupted = "true";
+            // If "eb-remote-act-stream" specifically triggered this remote volley, then
+            // it's a part of the previous remote output and should therefore append this
+            // remote response to that output
+            LOG_INFO << "Appending this additional output: " << remote_response_;
+            last_response_ += remote_response_;
+            SetLastPrompt(last_response_, stored_topic_, ChatEngines::remote());
+        }
+        else if(!Markup::IsMarkupOnly(remote_response_))
+        {
+            // Cache remote response only if it contains speech
+            SetLastPrompt(remote_response_, stored_topic_, ChatEngines::remote());
+        }
+        else if(stored_topic_ != last_topic_)
+        {
+            // Clear cache if we've jumped to a new topic with a speechless response
+            ClearLastPrompt();
         }
         else
         {
-            // If it's a speech input, it's interrupting if it contains the interruption variable
-            volley.Input()->GetVariable(INPUT_INTERRUPTING_VARIABLE, volley_interrupted);
+            LOG_INFO << "Did not update prompt";
         }
+    }
 
-        if (volley_interrupted == "true" && !Markup::IsMarkupOnly(stored_response_) && !stored_topic_.empty())
+    std::shared_ptr<ModuleRewindInfo> RepromptModule::OnChatVolleyFinished(Volley& volley)
+    {
+        // Retrieve last response and topic to perform needed checks and operations
+        auto last_response_ = GetLastPromptOutput();
+        auto last_topic_ = GetLastPromptTopic();
+
+        // Skip interruption handling only if CS requested a "send reprompt" call to
+        // avoid awkward interactions between dialogue override & sent reprompt event 
+        if(skip_interrupt_handler_)
         {
-            LOG_INFO << "The last volley was interrupted before completing; storing it's output as a reprompt.";
-            SetReprompt(stored_response_, stored_topic_);
+            do_reprompt_override_ = false; // reprompt overriding is part of interruption handling
+            LOG_INFO << "skipping interruption handling";
+        }
+        else
+        {
+            // Check whether or not the current volley is interrupting the previous volley
+            // and if so, set RB reprompt to the interrupted volley's entire output
+            std::string volley_interrupted;
+            if (volley.Input()->IsEvent())
+            {
+                // If it's an event input, check if it's one of the accepted interrupting events
+                auto volley_input = volley.Input()->InputString();
+                if(std::find(INTERRUPTING_EVENTS.begin(), INTERRUPTING_EVENTS.end(), volley_input) != INTERRUPTING_EVENTS.end())
+                    volley_interrupted = "true";
+            }
+            else
+            {
+                // If it's a speech input, it's interrupting if it contains the interruption variable
+                volley.Input()->GetVariable(INPUT_INTERRUPTING_VARIABLE, volley_interrupted);
+            }
+
+            if (volley_interrupted == "true" && !last_response_.empty() && !last_topic_.empty())
+            {
+                LOG_INFO << "The last volley was interrupted before completing; storing it's output as a reprompt.";
+                SetReprompt(last_response_, last_topic_);
+            }
         }
 
         // Perform some checks on the current module and then store it
         auto curr_module = tolower(ChatScriptUtil::FormatChatName(volley.Output()->Response().chat_module(), true));
-        // If the volley finishes on a tangent chatscript module, we consider it as if we've stayed in the previous chatscript module instead
-        if(std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), curr_module) != TANGENT_CHAT_MODULES.end())
-        {
-            LOG_INFO << "Volley finished in this tangent module: " << curr_module;
-            curr_module = prev_module_;
-        }
-        // Else if chatscript sent a save markup request, it's because the volley entered a "state change" tangent
-        else if(save_markup_called_)
+
+        // If chatscript sent a save markup request, it's because the volley entered a "state change" tangent
+        if(save_markup_called_)
         {
             curr_module = stateChangeModName;
             stored_topic_ = stateChangeTopicName;
+            keep_last_prompt_ = true;
             LOG_INFO << "Entering state change.";
         }
 
@@ -149,11 +231,12 @@ namespace robotbrain
                 {
                     auto new_reprompt = std::get<2>(*it);
                     if (!prepend_reprompt_text_.empty()){
-                        LOG_INFO << "Prepending this to found RB reprompt: " << prepend_reprompt_text_;
+                        LOG_INFO << "Prepending additional output to found RB reprompt";
                         new_reprompt = prepend_reprompt_text_ + " " + new_reprompt;
                     }
                     LOG_INFO << "Found and overriding volley output with this RB reprompt: " << new_reprompt;
                     volley.Output()->Response().set_response(new_reprompt);
+                    keep_last_prompt_ = true;
                     break;
                 }
             }
@@ -163,7 +246,7 @@ namespace robotbrain
         }
 
         // Store the current response for potential reprompting purposes before continuing to save/restore procedures
-        stored_response_ = volley.Output()->Response().response();
+        std::string local_response_ = volley.Output()->Response().response();
 
         // If we called restore markup on a one-volley tangent or reprompt, update the
         // restore markup to a tangent restore markup call & append a tangent save markup call
@@ -174,13 +257,13 @@ namespace robotbrain
             // This also means that the head slot remains the same this volley since we did not officially call a markup slot
             ToggleSlot();
 
-            // NOTE: "stored_response_" must both hold the correct restore markup AND NOT contain
+            // NOTE: "local_response_" must both hold the correct restore markup AND NOT contain
             // any save markup to ensure the reprompting overriding system above works correctly
-            ReplaceAll(stored_response_, restore_markup_prefix_ + std::to_string((int)markup_slot_) + markup_suffix_, restore_markup_prefix_ + markup_suffix_);
+            ReplaceAll(local_response_, restore_markup_prefix_ + std::to_string((int)markup_slot_) + markup_suffix_, restore_markup_prefix_ + markup_suffix_);
             
             // Since we want to save the markup state at the start of the volley, we'll append this save markup call to the start of ChatScript's output
             auto new_response = save_markup_prefix_ + markup_suffix_;
-            new_response += stored_response_;
+            new_response += local_response_;
             // Now set volley output with this new response which contains both save & restore tangent markup calls
             volley.Output()->Response().set_response(new_response);
             LOG_INFO << "This is a one-volley tangent or re-prompt; prepending a tangent save markup call and swapping previous restore call for a tangent restore markup call.";
@@ -195,14 +278,16 @@ namespace robotbrain
             }
             else if (restore_markup_called_)
             {
-                LOG_INFO << "Restore markup has already been requested this volley; not prepending save markup call as a result.";
+                LOG_INFO << "Restore markup already requested this volley; not prepending save markup call since it's IMPLIED a module is being popped (not pushed).";
             }
             else if (prev_module_ == stateChangeModName)
             {
                 LOG_INFO << "Exiting state change; no need to prepend a save markup call.";
             }
-            // Only save the markup state if we're not restoring it this volley since that IMPLIES
-            // we are pushing a chatscript module into the CS modulestack instead of popping one. 
+            else if(std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), curr_module) != TANGENT_CHAT_MODULES.end())
+            {
+                LOG_INFO << "No need to prepend a save markup call since volley finished in this tangent module: " << curr_module;
+            }
             else
             {
                 // Anytime we make a call to save a new markup state, we need to update our slots first and then save it in the new head slot
@@ -211,7 +296,7 @@ namespace robotbrain
 
                 // Since we want to save the markup state at the start of the volley, we'll append this save markup call to the start of ChatScript's output
                 auto new_response = save_markup_prefix_ + std::to_string((int)markup_slot_) + markup_suffix_;
-                new_response += stored_response_;
+                new_response += local_response_;
                 // Now set volley output with this new response which only contains a save markup call
                 volley.Output()->Response().set_response(new_response);
                 LOG_INFO << "Jumping to a new module; prepending save markup call at slot " << std::to_string((int)markup_slot_);
@@ -219,6 +304,34 @@ namespace robotbrain
             prev_module_ = curr_module;
         }
 
+        // No need to update last prompt if CS successfully overrides reprompt or plays last prompt
+        // since end result would either be the same or append unneeded speech
+        if (!keep_last_prompt_)
+        {
+            // NOTE: the following if/else statement intentionally ignores speechless
+            // output that does not advance the conversation state (i.e. active thinking)
+
+            // Cache local response only if it contains speech
+            // Otherwise clear cache if we've jumped to a new topic
+            if(!Markup::IsMarkupOnly(local_response_))
+                SetLastPrompt(local_response_, stored_topic_, ChatEngines::chatscript());
+            else if (stored_topic_ != last_topic_)
+                ClearLastPrompt();
+            else
+                LOG_INFO << "Did not update prompt";
+        }
+
+        return nullptr;
+    }
+
+    std::shared_ptr<Input> RepromptModule::InputReady()
+    {
+        if (do_reprompt_event_)
+        {
+            auto event = new EBRepromptEvent();
+            event->SetVariable("$eb_reprompt_source", "repromptModule");
+            return std::shared_ptr<Input>(event);
+        }
         return nullptr;
     }
 
@@ -235,6 +348,32 @@ namespace robotbrain
     {
         LOG_INFO << "CS has requested overriding volley output with a stored RB reprompt.";
         do_reprompt_override_ = true;
+
+        return NOPROBLEM_BIT;
+        
+    }
+
+    // Sends the last cached output or eb-reprompt if cache is empty
+    FunctionResult RepromptModule::SendReprompt(std::string& ret, std::string engine_request)
+    {
+        auto last_prompt = GetLastPromptOutput();
+        auto last_engine = GetLastPromptEngine();
+        keep_last_prompt_ = true;
+        skip_interrupt_handler_ = true;
+        if(last_prompt == "" ||
+            (tolower(engine_request) == "remote" && last_engine != ChatEngines::remote()) ||
+            (tolower(engine_request) == "chatscript" && last_engine != ChatEngines::chatscript()))
+        {
+            LOG_INFO << "Sending eb-reprompt request";
+            do_reprompt_event_ = true;
+            // This is here in case no one else produces output from CS side
+            ret = LineDB::DB().GetText(LineDB::ANIM_CURIOUS);
+        }
+        else
+        {
+            LOG_INFO << "Sending prompt output: " << last_prompt;
+            ret = last_prompt;
+        }
 
         return NOPROBLEM_BIT;
         
