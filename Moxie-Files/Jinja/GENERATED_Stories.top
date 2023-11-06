@@ -7,15 +7,15 @@ topic:  ~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles   keep
 ### Monologue module START
 t: PROMPT() ^keep() ^repeat()
     # prompt markup/text
-    ^reset(TOPIC ~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles_Monologue_Lines_NOSTAY_)
+    ^reset(TOPIC ~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles_Monologue_Lines)
     ^reuse(PLAY_NEXT_LINE)
 u: CLARIFICATION(^gbl_clarification())
     ^Fallback_Output_repeat2()
 u: REPROMPT(^gbl_reprompt())
     ^reuse(GO_BACK_TO_MONOLOGUE)
 u: PLAY_NEXT_LINE (eb-wait-complete)
-    ^respond(~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles_Monologue_Lines_NOSTAY_)
     ^eb_fallback_reset_all_counters()
+    ^respond(~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles_Monologue_Lines)
     ^enableMonologueTimer()
 u: EARLY_EXIT_MONOLOGUE ((!~not [another different new knew change other ~dislike ~sucks ~bad (^globalPattern_childQuit()) (^globalPattern_childStop())]))
     # Exit Node
@@ -49,7 +49,7 @@ u: FALLBACK(^gbl_fallback())
     ^moxie_interested()
     ^enableMonologueTimer()
 
-topic: ~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles_Monologue_Lines_NOSTAY_ repeat nostay []
+topic: ~STORY_TellStory_Standard_Story_UNROLLED_CID_Karu_and_the_Turtles_Monologue_Lines repeat nostay []
 u: REPEAT_LAST_LINE($$Monologue_repeatLastLine) ^keep()
     $_rule = ^join(MONOLOGUE_LINE_ $Monologue_Line)
     ^reuse($_rule)
@@ -137,4 +137,5 @@ u: MONOLOGUE_LINE_27 ()
 u: EXIT ()
     # Exit Node
     ^gambit(~STORY_TellStory_Play_Outro_Music_UNROLLED_CID_Karu_and_the_Turtles) # Gambit Specific Path
+    ^end(INPUT)
 ### Monologue module END
