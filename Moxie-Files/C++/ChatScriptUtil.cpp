@@ -26,7 +26,7 @@ std::string ChatScriptUtil::GetChatTopic(const std::string& chat_module, const s
 		chat_topic = chat_topic.substr(0, chat_topic.find('.'));
 		auto formatted_topic_module_id = tolower(GetModuleID(chat_topic, true));
 
-		if(formatted_topic_module_id == formatted_chat_module && !StringEndsWith(chat_topic, "nostay_"))
+		if(formatted_topic_module_id == formatted_chat_module)
 			curr_topic = FormatChatName(chat_topic, trim_lead_tilde);
 	}
 
