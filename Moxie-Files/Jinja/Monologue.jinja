@@ -8,7 +8,7 @@
 {% block prompt_rule %}
 ### Monologue module START
     {{super()}}
-    ^reset(TOPIC ~{{topic_name}}_Monologue_Lines_NOSTAY_)
+    ^reset(TOPIC ~{{topic_name}}_Monologue_Lines)
     ^reuse(PLAY_NEXT_LINE)
 {% endblock %}
 {% block reprompt_content %}
@@ -22,8 +22,8 @@
 
 {% block body %}
 u: PLAY_NEXT_LINE (eb-wait-complete)
-    ^respond(~{{topic_name}}_Monologue_Lines_NOSTAY_)
     ^eb_fallback_reset_all_counters()
+    ^respond(~{{topic_name}}_Monologue_Lines)
     {% if monologue_timer_value == 'monologue(0.25s)' %}
     ^enableMonologueTimer()
     {% elif monologue_timer_value == 'short(1.0s)' %}
@@ -112,9 +112,7 @@ u: FALLBACK(^gbl_fallback())
     ^enableMonologueTimer()
     {% endif %}
 
-{# this topic's name must end with "NOSTAY_" so robotbrain knows this is a cs topic we can never end on #}
-{# in this specific case, it means robotbrain now correctly grabs the fallback type for monologue nodes #}
-topic: ~{{topic_name}}_Monologue_Lines_NOSTAY_ repeat nostay []
+topic: ~{{topic_name}}_Monologue_Lines repeat nostay []
 
 u: REPEAT_LAST_LINE($$Monologue_repeatLastLine) ^keep()
     $_rule = ^join(MONOLOGUE_LINE_ $Monologue_Line)
@@ -128,5 +126,6 @@ u: MONOLOGUE_LINE_{{loop.index|upper}} ()
 
 u: EXIT ()
     {{util.exit_node(finished_monologue_move_on_topic)}}
+    ^end(INPUT)
 ### Monologue module END
 {% endblock %}
