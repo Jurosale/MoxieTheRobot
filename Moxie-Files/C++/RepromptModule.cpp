@@ -18,7 +18,7 @@ namespace robotbrain
     // This list contains all the interupting events that could reasonably interrupt screen/sound markup
     static const std::vector<std::string> INTERRUPTING_EVENTS = { "eb-mpu-picked-up-interrupt" };
     // This list contains all the ChatScript topics we can reasonably expect to be the base topic
-    static const std::vector<std::string> BASE_TOPICS = { "bo_heel_cool" };
+    static const std::vector<std::string> BASE_TOPICS = { "bo_heel_cool", "moximusprime_router" };
     static const std::string stateChangeModName = "statechangetangentmodule";
     static const std::string stateChangeTopicName = stateChangeModName + "_topicname";
     static const int maxRobotBrainReprompts = 3;
@@ -269,6 +269,20 @@ namespace robotbrain
             LOG_INFO << "This is a one-volley tangent or re-prompt; prepending a tangent save markup call and swapping previous restore call for a tangent restore markup call.";
         }
 
+        // Else if we called restore markup on a tangent module, remove the call since we don't
+        // need to save/restore a (visual/audio markup-less) module that can't be "returned to"
+        else if(restore_markup_called_ && std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), curr_module) != TANGENT_CHAT_MODULES.end())
+        {
+            // To ensure we correctly remove the restore markup call, we need to first undo the slot toggle from the markup call.
+            // This also means that the head slot remains the same this volley since we did not officially call a markup slot
+            ToggleSlot();
+
+            // Remove the restore markup call from the current volley's output and set the remaining output as its official output
+            ReplaceAll(local_response_, restore_markup_prefix_ + std::to_string((int)markup_slot_) + markup_suffix_, "");
+            volley.Output()->Response().set_response(local_response_);
+            LOG_INFO << "Undoing restore markup call since it's not needed in this tangent module: " << curr_module;
+        }
+
         // Else if we've changed chat modules...
         else if(prev_module_ != curr_module)
         {
@@ -284,9 +298,9 @@ namespace robotbrain
             {
                 LOG_INFO << "Exiting state change; no need to prepend a save markup call.";
             }
-            else if(std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), curr_module) != TANGENT_CHAT_MODULES.end())
+            else if(std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), prev_module_) != TANGENT_CHAT_MODULES.end())
             {
-                LOG_INFO << "No need to prepend a save markup call since volley finished in this tangent module: " << curr_module;
+                LOG_INFO << "No need to prepend a save markup call since volley exited this tangent module: " << prev_module_;
             }
             else
             {
@@ -328,6 +342,11 @@ namespace robotbrain
     {
         if (do_reprompt_event_)
         {
+            // Delete any lingering reprompts in the current module first to avoid
+            // awkward interactions between dialogue override & sent reprompt event
+            auto chatscript_module = ChatScriptUtil::GetModuleID(stored_topic_);
+            ClearReprompt(chatscript_module);
+
             auto event = new EBRepromptEvent();
             event->SetVariable("$eb_reprompt_source", "repromptModule");
             return std::shared_ptr<Input>(event);
