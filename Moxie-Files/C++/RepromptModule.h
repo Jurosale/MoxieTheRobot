@@ -50,6 +50,8 @@ class RepromptModule : public Module
     std::string last_response_topic_ = "";
     // store the ending module of the previous volley
     std::string prev_module_ = "";
+    // store the current module
+    std::string curr_module_ = "";
     // store the current CS topic name
     std::string stored_topic_ = "";
     // store the desired prepend text for the current volley
@@ -58,8 +60,8 @@ class RepromptModule : public Module
     bool skip_interrupt_handler_ = false;
     // flag to keep track of whether or not to update the last prompt
     bool keep_last_prompt_ = false;
-    // flag to keep track of whether or not save markup was called this volley
-    bool save_markup_called_ = false;
+    // flag to keep track of whether or not ChatScripts wants a "state changed" module
+    bool state_module_enabled_ = false;
     // flag to keep track of whether or not restore markup was called this volley
     bool restore_markup_called_ = false;
     // flag to keep track of whether or not ChatScript wants robotbrain to override its current volley's output
@@ -108,8 +110,8 @@ class RepromptModule : public Module
     // ChatScript Function that sends the last cached prompt output; sends eb-reprompt if unable to send output.
     // Can take in optional argument so it only sends output with the desired engine type 
     FunctionResult SendReprompt(std::string& ret, std::string engine_request="");
-    // ChatScript Function that sends a request to save the current markup state
-    FunctionResult SaveMarkupState(std::string& ret);
+    // ChatScript Function that sends a request to enter a "state change" module
+    FunctionResult EnableStateModule(std::string& ret, std::string enable="");
     // ChatScript Function that restores the last saved markup state
     FunctionResult RestoreMarkupState(std::string& ret);
 
@@ -131,7 +133,7 @@ public:
             ExtensionFunction("eb_prepend_current_reprompt", "prepends the desired text to the current robotbrain reprompt (if one exists)", &RepromptModule::PrependCurrentReprompt, this),
             ExtensionFunction("eb_override_with_reprompt", "overrides volley output with (any contextually relevant) robotbrain reprompt", &RepromptModule::DoRepromptOverride, this),
             ExtensionFunction("eb_do_reprompt", "send last cached output or eb-reprompt if empty", &RepromptModule::SendReprompt, this),
-            ExtensionFunction("eb_do_save_markup", "send request to save current markup state", &RepromptModule::SaveMarkupState, this),
+            ExtensionFunction("eb_enable_state_module", "enables a 'state change' module if set to true", &RepromptModule::EnableStateModule, this),
             ExtensionFunction("eb_do_restore_markup", "restore the last saved markup state", &RepromptModule::RestoreMarkupState, this)
         };
     }
