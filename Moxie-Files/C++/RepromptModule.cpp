@@ -1,6 +1,3 @@
-// README: This file defines behaviors for when/how Moxie should reprompt and
-// whether or not it needs to perform additional visual/sound effect actions
-
 #include <robotbrain2/system/RepromptModule.h>
 
 #define TAG "RepromptModule"
@@ -110,7 +107,6 @@ namespace robotbrain
     {
         skip_interrupt_handler_ = false;
         keep_last_prompt_ = false;
-        save_markup_called_ = false;
         restore_markup_called_ = false;
         do_reprompt_override_ = false;
         do_reprompt_event_ = false;
@@ -192,23 +188,24 @@ namespace robotbrain
             }
         }
 
-        // Perform some checks on the current module and then store it
-        auto curr_module = tolower(ChatScriptUtil::FormatChatName(volley.Output()->Response().chat_module(), true));
-
-        // If chatscript sent a save markup request, it's because the volley entered a "state change" tangent
-        if(save_markup_called_)
+        // Enter "state change" module if CS requested it
+        if(state_module_enabled_)
         {
-            curr_module = stateChangeModName;
+            curr_module_ = stateChangeModName;
             stored_topic_ = stateChangeTopicName;
             keep_last_prompt_ = true;
-            LOG_INFO << "Entering state change.";
+            LOG_INFO << "Inside state change module.";
         }
-
-        // Store (ordered) traversed chat topics as a list and retrieve the current topic
-        auto chat_topics = volley.Output()->Response().chat_topic();
-        auto new_topic = ChatScriptUtil::GetChatTopic(curr_module, chat_topics, true);
-        if (!new_topic.empty())
-            stored_topic_ = tolower(new_topic);
+        // Else store the current module and locate the current topic
+        else
+        {
+            curr_module_ = tolower(ChatScriptUtil::FormatChatName(volley.Output()->Response().chat_module(), true));
+            // Store (ordered) traversed chat topics as a list and retrieve the current topic
+            auto chat_topics = volley.Output()->Response().chat_topic();
+            auto new_topic = ChatScriptUtil::GetChatTopic(curr_module_, chat_topics, true);
+            if (!new_topic.empty())
+                stored_topic_ = tolower(new_topic);
+        }
 
         // If we end up traveling back to a base Chatscript topic, then we're starting a whole new convo and
         // we can clear all the currently stored robotbrain reprompts since we don't need them anymore.
@@ -241,8 +238,8 @@ namespace robotbrain
                 }
             }
 
-            if (!curr_module.empty())
-                ClearReprompt(curr_module);
+            if (!curr_module_.empty())
+                ClearReprompt(curr_module_);
         }
 
         // Store the current response for potential reprompting purposes before continuing to save/restore procedures
@@ -250,7 +247,7 @@ namespace robotbrain
 
         // If we called restore markup on a one-volley tangent or reprompt, update the
         // restore markup to a tangent restore markup call & append a tangent save markup call
-        if(restore_markup_called_ && prev_module_ == curr_module)
+        if(restore_markup_called_ && prev_module_ == curr_module_)
         {
             // To ensure we correctly enact a tangent restore markup call, we need to first undo the slot toggle from the earlier
             // restore call so that we can swap out the restore call of that markup slot with our tangent call instead.
@@ -271,7 +268,7 @@ namespace robotbrain
 
         // Else if we called restore markup on a tangent module, remove the call since we don't
         // need to save/restore a (visual/audio markup-less) module that can't be "returned to"
-        else if(restore_markup_called_ && std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), curr_module) != TANGENT_CHAT_MODULES.end())
+        else if(restore_markup_called_ && std::find(TANGENT_CHAT_MODULES.begin(), TANGENT_CHAT_MODULES.end(), curr_module_) != TANGENT_CHAT_MODULES.end())
         {
             // To ensure we correctly remove the restore markup call, we need to first undo the slot toggle from the markup call.
             // This also means that the head slot remains the same this volley since we did not officially call a markup slot
@@ -280,11 +277,11 @@ namespace robotbrain
             // Remove the restore markup call from the current volley's output and set the remaining output as its official output
             ReplaceAll(local_response_, restore_markup_prefix_ + std::to_string((int)markup_slot_) + markup_suffix_, "");
             volley.Output()->Response().set_response(local_response_);
-            LOG_INFO << "Undoing restore markup call since it's not needed in this tangent module: " << curr_module;
+            LOG_INFO << "Undoing restore markup call since it's not needed in this tangent module: " << curr_module_;
         }
 
         // Else if we've changed chat modules...
-        else if(prev_module_ != curr_module)
+        else if(prev_module_ != curr_module_)
         {
             if (prev_module_.empty())
             {
@@ -315,7 +312,7 @@ namespace robotbrain
                 volley.Output()->Response().set_response(new_response);
                 LOG_INFO << "Jumping to a new module; prepending save markup call at slot " << std::to_string((int)markup_slot_);
             }
-            prev_module_ = curr_module;
+            prev_module_ = curr_module_;
         }
 
         // No need to update last prompt if CS successfully overrides reprompt or plays last prompt
@@ -398,16 +395,19 @@ namespace robotbrain
         
     }
 
-    // Lets robot brain know that CS wants to make a save markup call
-    FunctionResult RepromptModule::SaveMarkupState(std::string& ret)
+    // Lets robot brain know that CS wants to enter a "state change" module
+    FunctionResult RepromptModule::EnableStateModule(std::string& ret, std::string enable)
     {
-        if(!save_markup_called_)
+        if(tolower(enable) == "true")
         {
-            save_markup_called_ = true;
-            LOG_INFO << "Sending save markup request.";
+            state_module_enabled_ = true;
+            LOG_INFO << "Enabling state change module.";
         }
         else
-            LOG_INFO << "Save markup was already called this volley. Ignoring save markup request.";
+        {
+            state_module_enabled_ = false;
+            LOG_INFO << "Disabling state change module";
+        }
 
         return NOPROBLEM_BIT;
         
